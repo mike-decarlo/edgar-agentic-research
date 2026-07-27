@@ -7,16 +7,29 @@ answer, and writes a full audit-trail JSON for the run.
 import logging
 
 from agents.verifier import run_pipeline_with_retry
-from audit import write_audit_log
+from audit import LOG_DIR, write_audit_log
 from tools.edgar import TickerNotFoundError
 
 
 def configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+    """Route all diagnostic logging to a file, keeping the console clean.
+
+    The researcher, verifier, and httpx all emit useful INFO-level chatter, but
+    it belongs in an audit file, not in front of the user. The user should see
+    the agent work silently and then get a single final answer, so we attach a
+    file handler to the root logger and deliberately add no console handler.
+    """
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(LOG_DIR / "run.log", encoding="utf-8")
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
     )
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(handler)
 
 
 def build_goal(ticker: str) -> str:
@@ -49,12 +62,12 @@ def main() -> None:
         print(f"\nSomething went wrong while researching {ticker}: {exc}")
         return
 
-    audit_path = write_audit_log(ticker, goal, result)
+    write_audit_log(ticker, goal, result)
 
-    print("\n=== FINAL ANSWER ===")
-    print(result.final_answer)
-    status = "passed verification" if result.passed else "did NOT pass verification"
-    print(f"\n({status} after {result.attempts} attempt(s). Audit log: {audit_path})")
+    # A single, clean message: just the verified research assessment. The
+    # verdict, attempt count, tool log, and audit path all live in the JSON
+    # audit file for anyone who needs to trace the answer back to its data.
+    print(f"\n{result.final_answer}")
 
 
 if __name__ == "__main__":
