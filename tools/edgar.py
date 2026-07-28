@@ -82,6 +82,15 @@ def fetch_filing_text(url: str) -> str:
     return soup.get_text(separator="\n", strip=True)
 
 
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
+    chunks = []
+    start = 0
+    while start < len(text):
+        chunks.append(text[start:start + chunk_size])
+        start += chunk_size - overlap
+    return chunks
+
+
 def _select_annual_facts(values: list[dict], limit: int = 4) -> list[dict]:
     """Reduce raw companyconcept unit entries to one row per fiscal year.
 
