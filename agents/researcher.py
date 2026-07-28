@@ -70,3 +70,66 @@ def run_researcher(user_goal: str, max_turns: int = 6) -> tuple[str, list[dict]]
 
     logger.warning("researcher hit max_turns (%d) without a final answer", max_turns)
     return "Max turns reached without a final answer.", tool_log
+
+
+TOOL_FUNCTIONS = {
+    "list_recent_filings": list_recent_filings,
+    "get_xbrl_fact": get_xbrl_fact,
+}
+
+# Ollama uses a JSON-schema "function" wrapper (OpenAI-style), a slightly
+# different envelope than Anthropic's flat input_schema — same content.
+TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_recent_filings",
+            "description": (
+                "List a company's most recent SEC filings of a given form type "
+                "(e.g., 10-K, 10-Q)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Stock ticker, e.g., AAPL.",
+                    },
+                    "form_type": {
+                        "type": "string",
+                        "description": "SEC form type, e.g., 10-K.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max filings to return.",
+                    },
+                },
+                "required": ["ticker"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_xbrl_fact",
+            "description": (
+                "Get historical annual values for a specific us-gaap XBRL "
+                "concept (e.g., Assets, Revenues, NetIncomeLoss) for a company."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Stock ticker, e.g., AAPL.",
+                    },
+                    "concept": {
+                        "type": "string",
+                        "description": "us-gaap concept name, e.g., NetIncomeLoss.",
+                    },
+                },
+                "required": ["ticker"],
+            },
+        },
+    },
+]
