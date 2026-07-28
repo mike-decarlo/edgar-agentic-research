@@ -75,6 +75,7 @@ def run_researcher(user_goal: str, max_turns: int = 6) -> tuple[str, list[dict]]
 TOOL_FUNCTIONS = {
     "list_recent_filings": list_recent_filings,
     "get_xbrl_fact": get_xbrl_fact,
+    "search_filing_text": search_filing_text,
 }
 
 # Ollama uses a JSON-schema "function" wrapper (OpenAI-style), a slightly
@@ -105,6 +106,30 @@ TOOL_SCHEMAS = [
                     },
                 },
                 "required": ["ticker"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_filing_text",
+            "description": (
+                "Searches the actual text of a company's most recent 10-K for passages "
+                "relevant to a natural-language query (e.g. why a financial metric changed)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Stock ticker, e.g., AAPL.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "what to search for in the filing text",
+                    },
+                },
+                "required": ["ticker", "query"],
             },
         },
     },
