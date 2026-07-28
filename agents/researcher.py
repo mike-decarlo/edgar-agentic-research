@@ -14,7 +14,8 @@ from datetime import date
 from ollama import chat
 
 from config import MODEL
-from tools.edgar import TOOL_FUNCTIONS, TOOL_SCHEMAS
+from tools.edgar import get_xbrl_fact, list_recent_filings
+from tools.retrieval import search_filing_text
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def english_system_prompt() -> dict:
     return {
         "role": "system",
         "content": (
-            f"Today's date is {date.today().isoformat()}. Dates on or before "
+            f"Today's date is {date.today().isoformat()}. Dates on or before "  # noqa: DTZ011
             "today are in the past and are valid. You must always respond in "
             "English only."
         ),
@@ -56,7 +57,7 @@ def run_researcher(user_goal: str, max_turns: int = 6) -> tuple[str, list[dict]]
             logger.info("[turn %d] calling %s(%s)", turn, name, args)
             try:
                 result = TOOL_FUNCTIONS[name](**args)
-            except Exception as exc:  # surfaced back to the model as a tool result
+            except Exception as exc:  # surfaced back to the model as a tool result  # noqa: BLE001
                 logger.warning("tool %s failed: %s", name, exc)
                 result = {"error": str(exc)}
 

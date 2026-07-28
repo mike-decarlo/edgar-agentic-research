@@ -8,8 +8,8 @@ back to a model as a tool result.
 
 import logging
 
-from bs4 import BeautifulSoup
 import requests
+from bs4 import BeautifulSoup
 
 from config import get_headers
 

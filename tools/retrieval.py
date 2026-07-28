@@ -4,9 +4,10 @@ These are tools to take the collected filing text and begin working with
 it in Retrieval Augmented Generation methods with the OLLAMA model.
 """
 
-from tools.edgar import fetch_filing_text, list_recent_filings, chunk_text
-import ollama
 import numpy as np
+import ollama
+
+from tools.edgar import chunk_text, fetch_filing_text, list_recent_filings
 
 
 def embed(text: str) -> np.ndarray:
