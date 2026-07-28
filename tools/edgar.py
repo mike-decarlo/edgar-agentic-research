@@ -8,6 +8,7 @@ back to a model as a tool result.
 
 import logging
 
+from bs4 import BeautifulSoup
 import requests
 
 from config import get_headers
@@ -72,6 +73,13 @@ def list_recent_filings(
         if len(out) >= limit:
             break
     return out
+
+
+def fetch_filing_text(url: str) -> str:
+    resp = requests.get(url, headers=get_headers())
+    # 10-Ks are HTML - strip tags, keep readable text
+    soup = BeautifulSoup(resp.text, "html.parser")
+    return soup.get_text(separator="\n", strip=True)
 
 
 def _select_annual_facts(values: list[dict], limit: int = 4) -> list[dict]:
