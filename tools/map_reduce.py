@@ -24,7 +24,7 @@ from tools.edgar import chunk_text
 
 CHAT_MODEL = "qwen2.5:14b"
 
-_encoder = tiktoken.get_encoding("cl100k_base1")
+_encoder = tiktoken.get_encoding("cl100k_base")
 
 logger = logging.getLogger(__name__)
 
