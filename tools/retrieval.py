@@ -8,6 +8,7 @@ import numpy as np
 import ollama
 
 from tools.edgar import chunk_text, fetch_filing_text, list_recent_filings
+from tools.map_reduce import compress_to_fit, count_tokens, get_model_context_limit
 
 
 def embed(text: str) -> np.ndarray:
