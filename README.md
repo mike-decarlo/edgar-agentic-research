@@ -171,7 +171,7 @@ $96.99B/$9.37B duplicate-fiscal-year bug described above.
 
 ## Example run
 
-A real run against `AAPL` (`qwen2.5:14b`, log lines trimmed for brevity):
+A real run against `AAPL` (`qwen2.5:14b`):
 
 ```text
 $ python main.py
