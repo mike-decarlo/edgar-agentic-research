@@ -34,9 +34,10 @@ def configure_logging() -> None:
 
 def build_goal(ticker: str) -> str:
     return (
-        f"Look up {ticker}'s most recent 10-K filing and its NetIncomeLoss "
-        "XBRL history. Summarize the trend in 3 sentences and flag anything odd "
-        "about data quality or gaps in the reported values."
+        f"Look up {ticker}'s most recent 10-K filing. Pull the historical annual "
+        "values for both NetIncomeLoss and Revenues (call get_xbrl_fact for each "
+        "concept separately). Summarize the NetIncomeLoss trend in 3 sentences "
+        "and flag anything odd about data quality or gaps in the reported values."
     )
 
 
