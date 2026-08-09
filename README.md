@@ -86,13 +86,17 @@ There's a dedicated regression test for exactly this scenario in
 edgar-agentic-research/
 ├── config.py            # model + SEC User-Agent (from environment)
 ├── tools/
-│   └── edgar.py         # get_cik, list_recent_filings, get_xbrl_fact, tool schemas
+│   ├── edgar.py         # get_cik, list_recent_filings, get_xbrl_fact, tool schemas
+│   ├── map_reduce.py    # controlled map reduction for text that will overflow context window on retrieval
+|   └── retrieval.py     # RAG for relevance-based retreival
 ├── agents/
 │   ├── researcher.py    # run_researcher — the ReAct tool loop
 │   └── verifier.py      # check_numeric_sanity, verify_answer, run_pipeline_with_retry
 ├── audit.py             # writes each run to logs/<timestamp>_<TICKER>.json
 ├── main.py              # CLI entry point
 ├── tests/               # offline unit + regression tests (mocked SEC API)
+│   ├── test_edgar.py    # tests for edgar tools like cik resolution and deduplication by fiscal year
+│   ├── test_sanity.py   # tests for numeric sanity checking of ratio thresholds
 ├── requirements.txt     # runtime deps (pinned)
 ├── requirements-dev.txt # + pytest
 └── .env.example         # SEC User-Agent template
