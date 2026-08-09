@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 tiktoken==0.13.0
 beautifulsoup4==4.15.0
 requests==2.32.3
+numpy==2.5.1
