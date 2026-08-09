@@ -18,7 +18,7 @@ from tools.map_reduce import (
 
 def embed(text: str) -> np.ndarray:
     resp = ollama.embeddings(model="nomic-embed-text", prompt=text)
-    return np.array(resp["embeddings"][0])
+    return np.array(resp["embeddings"])
 
 
 def search_filing_text(ticker: str, query: str, top_k: int = 3) -> dict:
