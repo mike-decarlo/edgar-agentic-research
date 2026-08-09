@@ -40,7 +40,7 @@ class PipelineResult:
     passed: bool = False
 
 
-def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list[str]:
+def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
     """
     Cross-validates NetIncomeLoss against Revenues using accounting identities
     (margin bounds), rather than flagging on raw magnitude swings alone.
