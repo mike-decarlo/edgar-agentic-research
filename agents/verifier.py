@@ -22,6 +22,7 @@ from ollama import chat
 
 from agents.researcher import english_system_prompt, run_researcher
 from config import MODEL
+from tools.edgar import get_xbrl_fact
 
 logger = logging.getLogger(__name__)
 
@@ -38,27 +39,72 @@ class PipelineResult:
     passed: bool = False
 
 
-def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
-    """Deterministic magnitude check over the researcher's XBRL results.
-
-    Flags any year-over-year move smaller than ~1/3 or larger than ~3x, which
-    for a stable balance-sheet concept almost always means a data or scale
-    error (e.g. a duplicated fiscal year that wasn't deduped) rather than a
-    real change.
+def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list[str]:
+    """
+    Cross-validates NetIncomeLoss against Revenues using accounting identities
+    (margin bounds), rather than flagging on raw magnitude swings alone.
+    Magnitude swings are only flagged if they're ALSO not corroborated by
+    revenue movement in the same direction -- catching data bugs (duplicate/
+    misaligned fiscal periods) without penalizing genuine business growth.
     """
     issues = []
+    net_income_entries = None
+    revenue_entries = None
+
     for entry in tool_log:
-        if entry["tool"] != "get_xbrl_fact":
-            continue
-        values = entry["result"].get("values", [])
-        for prev, curr in zip(values, values[1:]):
-            v1, v2 = prev.get("val"), curr.get("val")
-            if v1 and v2 and (v2 < v1 * 0.3 or v2 > v1 * 3):
+        if entry["tool"] == "get_xbrl_fact" and entry["result"].get("concept") == "NetIncomeLoss":
+            net_income_entries = entry["result"].get("values", [])
+        if entry["tool"] == "get_xbrl_fact" and entry["result"].get("concept") == "Revenues":
+            revenue_entries = entry["result"].get("values", [])
+
+        if not net_income_entries:
+            return issues
+
+        # Check 1: fiscal period spacing -- catches the ORIGINAL bug class
+        # (duplicate/misaligned fiscal years from undeduped SEC data), independent
+        # of magnitude entirely.
+        for prev, curr in zip(net_income_entries, net_income_entries[1:]):
+            from datetime import date
+            d1 = date.fromisoformat(prev["end"])
+            d2 = date.fromisoformat(curr["end"])
+            days = (d2 - d1).days
+            if not (330 <= days <= 400): # should be roughly 1 fiscal year
                 issues.append(
-                    f"{entry['result']['concept']}: {prev['end']}={v1:,} -> "
-                    f"{curr['end']}={v2:,} is a >3x swing -- likely a data or "
-                    "scale error"
+                    f"NetIncomeLoss fiscal periods {prev['end']} -> {curr['end']} "
+                    f"are {days} days apart, not ~1 year -- possible duplicate/misaligned entry"
                 )
+
+        # Check 2: margin plausibility, if we have Revenues to cross-check against
+        if revenue_entries:
+            rev_by_end = {v["end"]: v["val"] for v in revenue_entries}
+            for ni in net_income_entries:
+                rev = rev_by_end.get(ni["end"])
+                if rev and rev > 0:
+                    margin = ni["val"] / rev
+                    # net income can't exceed revenue
+                    # allow generous loss room for bad years
+                    if margin > 1.0 or margin < -3.0:
+                        issues.append(
+                            f"NetIncomeLoss/Revenues margin for FY ending {ni['end']} "
+                            f"is {margin:.1%} -- outside plausible bounds"
+                        )
+
+        # Check 3: large swings are only suspicious if revenue moved the OPPOSITE
+        # direction -- a real red flag (profit tripled while revenue fell?, as
+        # opposed to profit growing faster than revenue (normal margin exapansion).
+        if revenue_entries:
+            for prev, curr in zip(net_income_entries, net_income_entries[1:]):
+                rev_prev = rev_by_end.get(prev["end"])
+                rev_curr = rev_by_end.get(curr["end"])
+                if rev_prev and rev_curr:
+                    ni_grew = curr["val"] > prev["val"] * 1.5
+                    rev_shrank = rev_curr < rev_prev * 0.95
+                    if ni_grew and rev_shrank:
+                        issues.append(
+                            f"NetIncomeLoss grew sharply ({prev['end']}->{curr['end']}) "
+                            f"while Revenues declined -- inconsistent, worth reviewing"
+                        )
+                        
     return issues
 
 
