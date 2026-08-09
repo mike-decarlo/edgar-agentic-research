@@ -18,7 +18,7 @@ from tools.map_reduce import (
 
 def embed(text: str) -> np.ndarray:
     resp = ollama.embeddings(model="nomic-embed-text", prompt=text)
-    return np.array(resp["embeddings"])
+    return np.array(resp["embeddings"][0])
 
 
 def search_filing_text(ticker: str, query: str, top_k: int = 3) -> dict:
@@ -34,8 +34,8 @@ def search_filing_text(ticker: str, query: str, top_k: int = 3) -> dict:
     chunk_embeddings = [embed(c) for c in chunks]
     query_vec = embed(query)
 
-    sims = [np.dot(query_vec, c) / (np.linalg.norm(query_vec) * np.linal.norm(c)) for c in chunk_embeddings]
-    top_indices = np.arsort(sims)[-top_k:][::-1]
+    sims = [np.dot(query_vec, c) / (np.linalg.norm(query_vec) * np.linalg.norm(c)) for c in chunk_embeddings]
+    top_indices = np.argsort(sims)[-top_k:][::-1]
     retrieved = [chunks[i] for i in top_indices]
 
     combined = "\n\n".join(retrieved)
