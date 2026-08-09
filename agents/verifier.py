@@ -75,6 +75,9 @@ def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list
             )
 
     # Check 2: margin plausibility, if we have Revenues to cross-check against
+    # Check 3: large swings are only suspicious if revenue moved the OPPOSITE
+    # direction -- a real red flag (profit tripled while revenue fell?, as
+    # opposed to profit growing faster than revenue (normal margin exapansion).
     if revenue_entries:
         rev_by_end = {v["end"]: v["val"] for v in revenue_entries}
         for ni in net_income_entries:
@@ -89,10 +92,6 @@ def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list
                         f"is {margin:.1%} -- outside plausible bounds"
                     )
 
-    # Check 3: large swings are only suspicious if revenue moved the OPPOSITE
-    # direction -- a real red flag (profit tripled while revenue fell?, as
-    # opposed to profit growing faster than revenue (normal margin exapansion).
-    if revenue_entries:
         for prev, curr in zip(net_income_entries, net_income_entries[1:]):
             rev_prev = rev_by_end.get(prev["end"])
             rev_curr = rev_by_end.get(curr["end"])
@@ -104,6 +103,12 @@ def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list
                         f"NetIncomeLoss grew sharply ({prev['end']}->{curr['end']}) "
                         f"while Revenues declined -- inconsistent, worth reviewing"
                     )
+
+    else:
+        issues.append(
+            "NetIncomeLoss reported without Revenues to cross-check margin "
+            "plausibility -- researcher did not pull Revenue; handle with caution"
+        )
 
     return issues
 
