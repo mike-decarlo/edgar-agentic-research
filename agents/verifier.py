@@ -17,6 +17,7 @@ impossible, there is no point spending an LLM call to check the wording.
 import json
 import logging
 from dataclasses import dataclass, field
+from datetime import date
 
 from ollama import chat
 
@@ -57,54 +58,53 @@ def check_numeric_sanity(tool_log: list[dict], client_fxn=get_xbrl_fact) -> list
         if entry["tool"] == "get_xbrl_fact" and entry["result"].get("concept") == "Revenues":
             revenue_entries = entry["result"].get("values", [])
 
-        if not net_income_entries:
-            return issues
+    if not net_income_entries:
+        return issues
 
-        # Check 1: fiscal period spacing -- catches the ORIGINAL bug class
-        # (duplicate/misaligned fiscal years from undeduped SEC data), independent
-        # of magnitude entirely.
+    # Check 1: fiscal period spacing -- catches the ORIGINAL bug class
+    # (duplicate/misaligned fiscal years from undeduped SEC data), independent
+    # of magnitude entirely.
+    for prev, curr in zip(net_income_entries, net_income_entries[1:]):
+        d1 = date.fromisoformat(prev["end"])
+        d2 = date.fromisoformat(curr["end"])
+        days = (d2 - d1).days
+        if not (330 <= days <= 400): # should be roughly 1 fiscal year
+            issues.append(
+                f"NetIncomeLoss fiscal periods {prev['end']} -> {curr['end']} "
+                f"are {days} days apart, not ~1 year -- possible duplicate/misaligned entry"
+            )
+
+    # Check 2: margin plausibility, if we have Revenues to cross-check against
+    if revenue_entries:
+        rev_by_end = {v["end"]: v["val"] for v in revenue_entries}
+        for ni in net_income_entries:
+            rev = rev_by_end.get(ni["end"])
+            if rev and rev > 0:
+                margin = ni["val"] / rev
+                # net income can't exceed revenue
+                # allow generous loss room for bad years
+                if margin > 1.0 or margin < -3.0:
+                    issues.append(
+                        f"NetIncomeLoss/Revenues margin for FY ending {ni['end']} "
+                        f"is {margin:.1%} -- outside plausible bounds"
+                    )
+
+    # Check 3: large swings are only suspicious if revenue moved the OPPOSITE
+    # direction -- a real red flag (profit tripled while revenue fell?, as
+    # opposed to profit growing faster than revenue (normal margin exapansion).
+    if revenue_entries:
         for prev, curr in zip(net_income_entries, net_income_entries[1:]):
-            from datetime import date
-            d1 = date.fromisoformat(prev["end"])
-            d2 = date.fromisoformat(curr["end"])
-            days = (d2 - d1).days
-            if not (330 <= days <= 400): # should be roughly 1 fiscal year
-                issues.append(
-                    f"NetIncomeLoss fiscal periods {prev['end']} -> {curr['end']} "
-                    f"are {days} days apart, not ~1 year -- possible duplicate/misaligned entry"
-                )
+            rev_prev = rev_by_end.get(prev["end"])
+            rev_curr = rev_by_end.get(curr["end"])
+            if rev_prev and rev_curr:
+                ni_grew = curr["val"] > prev["val"] * 1.5
+                rev_shrank = rev_curr < rev_prev * 0.95
+                if ni_grew and rev_shrank:
+                    issues.append(
+                        f"NetIncomeLoss grew sharply ({prev['end']}->{curr['end']}) "
+                        f"while Revenues declined -- inconsistent, worth reviewing"
+                    )
 
-        # Check 2: margin plausibility, if we have Revenues to cross-check against
-        if revenue_entries:
-            rev_by_end = {v["end"]: v["val"] for v in revenue_entries}
-            for ni in net_income_entries:
-                rev = rev_by_end.get(ni["end"])
-                if rev and rev > 0:
-                    margin = ni["val"] / rev
-                    # net income can't exceed revenue
-                    # allow generous loss room for bad years
-                    if margin > 1.0 or margin < -3.0:
-                        issues.append(
-                            f"NetIncomeLoss/Revenues margin for FY ending {ni['end']} "
-                            f"is {margin:.1%} -- outside plausible bounds"
-                        )
-
-        # Check 3: large swings are only suspicious if revenue moved the OPPOSITE
-        # direction -- a real red flag (profit tripled while revenue fell?, as
-        # opposed to profit growing faster than revenue (normal margin exapansion).
-        if revenue_entries:
-            for prev, curr in zip(net_income_entries, net_income_entries[1:]):
-                rev_prev = rev_by_end.get(prev["end"])
-                rev_curr = rev_by_end.get(curr["end"])
-                if rev_prev and rev_curr:
-                    ni_grew = curr["val"] > prev["val"] * 1.5
-                    rev_shrank = rev_curr < rev_prev * 0.95
-                    if ni_grew and rev_shrank:
-                        issues.append(
-                            f"NetIncomeLoss grew sharply ({prev['end']}->{curr['end']}) "
-                            f"while Revenues declined -- inconsistent, worth reviewing"
-                        )
-                        
     return issues
 
 
