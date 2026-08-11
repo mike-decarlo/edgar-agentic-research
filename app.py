@@ -32,7 +32,7 @@ from llm import active_model, current_provider  # noqa: E402
 from tools.edgar import TickerNotFoundError  # noqa: E402
 
 DEFAULT_QUESTION = (
-    "Summarize the NetIncomeLoss trend in 3 sentences and flag anything odd "
+    "Summarize the NetIncomeLoss trend in 2-3 paragraphs and flag anything odd "
     "about data quality or gaps in the reported values."
 )
 
