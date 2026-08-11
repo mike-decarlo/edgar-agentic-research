@@ -22,6 +22,11 @@ except ImportError:  # pragma: no cover - trivial fallback
 
 MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
 
+# Hosted fallback model (Groq's OpenAI-compatible API) for GPU-free deployments.
+# See llm.py for how the provider is chosen. Any tool-capable open-weight model
+# on Groq works; llama-3.3-70b-versatile is a reliable default.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
 # The placeholder shipped in .env.example — treated as "not configured".
 _PLACEHOLDER_UA = "Your Name your-email@example.com"
 

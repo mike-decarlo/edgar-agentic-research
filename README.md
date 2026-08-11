@@ -2,8 +2,10 @@
 
 A small, framework-free **multi-agent** system that researches a public
 company's SEC filings and then **checks its own work** before returning an
-answer. It runs entirely against **local Ollama models** (default
-`qwen2.5:14b`) — no API keys, no cloud, no per-token cost.
+answer. Locally it runs entirely against **local Ollama models** (default
+`qwen2.5:14b`) — no API keys, no cloud, no per-token cost. For the public demo
+it transparently falls back to a **free hosted model** (Groq) when no local GPU
+is available; see [Deployment](#deployment).
 
 Given a ticker, a **researcher** agent pulls real data from the SEC EDGAR API
 (recent filings and XBRL financial facts), summarizes the trend, and flags data
@@ -84,7 +86,9 @@ There's a dedicated regression test for exactly this scenario in
 
 ```
 edgar-agentic-research/
-├── config.py            # model + SEC User-Agent (from environment)
+├── config.py            # model names + SEC User-Agent (from environment)
+├── llm.py               # provider switch: local Ollama <-> hosted Groq fallback
+├── app.py               # Streamlit UI: inputs + ReAct trace + verifier output
 ├── tools/
 │   ├── edgar.py         # get_cik, list_recent_filings, get_xbrl_fact, tool schemas
 │   ├── map_reduce.py    # controlled map reduction for text that will overflow context window on retrieval
@@ -153,6 +157,65 @@ python main.py
 
 Each run prints the final answer and writes a full audit record (goal, answer,
 verifier verdict, and the complete raw tool log) to `logs/`.
+
+---
+
+## Deployment
+
+**Local development** uses **Ollama + `qwen2.5:14b`** running against a local
+GPU — no API key, no per-token cost.
+
+**The public demo** ([Streamlit Community Cloud](https://share.streamlit.io))
+has **no GPU**, so it can't run Ollama. There it transparently falls back to
+**Groq's free OpenAI-compatible API** with an equivalent open-weight model
+(`llama-3.3-70b-versatile`). `llm.py` owns this provider switch: it uses local
+Ollama when a server is reachable and otherwise calls Groq — the ReAct loop,
+`tool_log`, deterministic sanity gate, and LLM verifier are all identical on
+both backends. Force a backend with `LLM_PROVIDER=ollama|groq`; the default
+auto-detects.
+
+### Running the Streamlit app
+
+```bash
+pip install -r requirements.txt
+
+# Provide secrets (git-ignored — never committed):
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# then edit it to set SEC_USER_AGENT and, for the hosted fallback, GROQ_API_KEY
+# (free key: https://console.groq.com/keys)
+
+streamlit run app.py
+```
+
+The app takes a ticker and a research question and displays the researcher's
+**ReAct tool trace**, the **deterministic numeric sanity gate**, and the
+**LLM verifier's** verdict — so a reviewer sees the checking machinery, not just
+a final sentence.
+
+### Deploying to Streamlit Community Cloud
+
+1. Push this repo to GitHub.
+2. At <https://share.streamlit.io>, sign in with GitHub and create an app
+   pointing at this repo/branch with `app.py` as the entry point.
+3. In the app's **Settings -> Secrets**, paste the same `key = "value"` lines
+   as `.streamlit/secrets.toml` (`SEC_USER_AGENT`, `GROQ_API_KEY`). No local
+   `secrets.toml` is ever uploaded.
+4. Deploy — you get a public `*.streamlit.app` URL.
+
+### Assumptions made
+
+- **No GPU on free hosting**, so the public demo uses Groq's hosted
+  `llama-3.3-70b-versatile` instead of local `qwen2.5:14b`. Answer wording may
+  differ slightly between the two models, but the deterministic sanity gate and
+  the verifier behave identically.
+- **The `search_filing_text` RAG tool is local-only.** It relies on Ollama
+  embeddings (`nomic-embed-text`) and local map-reduce, which Groq's API
+  doesn't provide. In hosted mode a call to it degrades to a handled tool-error
+  rather than crashing; the demo's core flow (`get_xbrl_fact` -> sanity gate ->
+  verifier) is unaffected.
+- **Secrets live in the secrets manager, not the repo** — `.env` and
+  `.streamlit/secrets.toml` are git-ignored; only `*.example` templates are
+  tracked.
 
 ---
 

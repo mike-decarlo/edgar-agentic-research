@@ -45,6 +45,7 @@ def list_recent_filings(
     ticker: str, form_type: str = "10-K", limit: int = 3
 ) -> list[dict]:
     """Pull recent filings of a given form type for a ticker."""
+    limit = int(limit)  # models sometimes hand us "3" as a string
     cik = get_cik(ticker)
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
     resp = requests.get(url, headers=get_headers())
