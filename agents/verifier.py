@@ -169,27 +169,22 @@ def run_pipeline_with_retry(user_goal: str, max_retries: int = 2) -> PipelineRes
         answer, tool_log = run_researcher(goal)
         logger.info("--- attempt %d: researcher answered ---\n%s", attempt, answer)
 
-        numeric_issues = check_numeric_sanity(tool_log)
-        if numeric_issues:
-            logger.warning(
-                "deterministic sanity check flagged issues (skipping LLM "
-                "verifier): %s",
-                numeric_issues,
-            )
+        sanity = check_numeric_sanity(tool_log)
+        if sanity["issues"]:
+            logger.warning("deterministic sanity check flagged issues: %s", sanity["issues"])
             return PipelineResult(
-                final_answer=(
-                    "Flagged before verification by the deterministic sanity "
-                    f"check: {numeric_issues}"
-                ),
+                final_answer=f"Flagged before verification by the deterministic sanity check: {sanity['issues']}",
                 tool_log=tool_log,
-                numeric_issues=numeric_issues,
+                numeric_issues=sanity["issues"],
                 attempts=attempt,
                 passed=False,
             )
 
+        if sanity["notes"]:
+            answer += "\n\nData coverage notes:\n" + "\n".join(f"- {n}" for n in sanity["notes"])
+
         check = verify_answer(goal, answer, tool_log)
         last_check = check
-        logger.info("--- verifier check ---\n%s", json.dumps(check, indent=2))
 
         if check.get("valid"):
             return PipelineResult(
