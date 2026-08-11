@@ -1,5 +1,7 @@
 # Secrets / local config
 .env
+# Streamlit secrets (real keys live here locally; only the .example is tracked)
+.streamlit/secrets.toml
 
 # Local Claude Code config (remove this line if you want to share it)
 .claude/

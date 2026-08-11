@@ -19,10 +19,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 
-from ollama import chat
-
 from agents.researcher import english_system_prompt, run_researcher
-from config import MODEL
+from llm import chat
 from tools.edgar import get_xbrl_fact
 
 logger = logging.getLogger(__name__)
@@ -134,7 +132,6 @@ def verify_answer(user_goal: str, agent_answer: str, tool_log: list[dict]) -> di
     {{"valid": true/false, "issues": ["issue1", "issue2"], "corrected_answer": "..."}}
     """
     response = chat(
-        model=MODEL,
         messages=[english_system_prompt(), {"role": "user", "content": check_prompt}],
     )
     raw = response["message"]["content"].strip()

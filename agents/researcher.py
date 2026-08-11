@@ -11,9 +11,7 @@ import json
 import logging
 from datetime import date
 
-from ollama import chat
-
-from config import MODEL
+from llm import chat
 from tools.edgar import get_xbrl_fact, list_recent_filings
 from tools.retrieval import search_filing_text
 
@@ -43,7 +41,7 @@ def run_researcher(user_goal: str, max_turns: int = 6) -> tuple[str, list[dict]]
     tool_log: list[dict] = []
 
     for turn in range(max_turns):
-        response = chat(model=MODEL, messages=messages, tools=TOOL_SCHEMAS)
+        response = chat(messages=messages, tools=TOOL_SCHEMAS)
         msg = response["message"]
         messages.append(msg)
 

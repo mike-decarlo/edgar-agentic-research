@@ -4,5 +4,8 @@ requests==2.32.3
 python-dotenv==1.0.1
 tiktoken==0.13.0
 beautifulsoup4==4.15.0
-requests==2.32.3
 numpy==2.5.1
+
+# Web UI + hosted-model fallback (GPU-free public demo).
+streamlit==1.61.1
+openai==2.54.0
