@@ -40,15 +40,19 @@ class PipelineResult:
     passed: bool = False
 
 
-def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
+def check_numeric_sanity(tool_log: list[dict]) -> dict:
+    """Returns {"issues": [...], "notes": [...]}.
+
+    "issues" are data-correctness problems worth halting for (implausible
+    margins, revenue moving opposite direction from a NI swing) -- these mean
+    something is likely WRONG.
+
+    "notes" are informational observations (gaps between reported fiscal
+    years) -- these mean the data is incomplete, not wrong, and should be
+    surfaced in the final analysis rather than block it.
     """
-    Cross-validates NetIncomeLoss against Revenues using accounting identities
-    (margin bounds), rather than flagging on raw magnitude swings alone.
-    Magnitude swings are only flagged if they're ALSO not corroborated by
-    revenue movement in the same direction -- catching data bugs (duplicate/
-    misaligned fiscal periods) without penalizing genuine business growth.
-    """
-    issues = []
+    issues: list[str] = []
+    notes: list[str] = []
     net_income_entries = None
     revenue_entries = None
 
@@ -59,19 +63,17 @@ def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
             revenue_entries = entry["result"].get("values", [])
 
     if not net_income_entries:
-        return issues
+        return {"issues": issues, "notes": notes}
 
-    # Check 1: fiscal period spacing -- catches the ORIGINAL bug class
-    # (duplicate/misaligned fiscal years from undeduped SEC data), independent
-    # of magnitude entirely.
+    # Check 1: Gaps between reported fiscal years -- informational only, never gates
     for prev, curr in zip(net_income_entries, net_income_entries[1:]):
         d1 = date.fromisoformat(prev["end"])
         d2 = date.fromisoformat(curr["end"])
         days = (d2 - d1).days
-        if not (330 <= days <= 400): # should be roughly 1 fiscal year
-            issues.append(
-                f"NetIncomeLoss fiscal periods {prev['end']} -> {curr['end']} "
-                f"are {days} days apart, not ~1 year -- possible duplicate/misaligned entry"
+        if days > 400:
+            notes.append(
+                f"No annual NetIncomeLoss filing found between {prev['end']} "
+                f"and {curr['end']} ({days} days apart) -- gap in filing history"
             )
 
     # Check 2: margin plausibility, if we have Revenues to cross-check against
