@@ -48,6 +48,24 @@ def build_goal(ticker: str, question: str) -> str:
 
 st.set_page_config(page_title="EDGAR Agentic Research", page_icon="📑", layout="wide")
 
+# Constrain the main content to 70% of the viewport width and center it. Streamlit's
+# built-in "centered" layout uses a fixed pixel max-width; we want a responsive 70%,
+# so we keep the "wide" layout and narrow the main block container with CSS instead.
+st.markdown(
+    """
+    <style>
+      .block-container {
+        max-width: 70%;
+        margin-left: auto;
+        margin-right: auto;
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("📑 EDGAR Agentic Research")
 st.caption(
     "A researcher agent pulls real SEC EDGAR data via a ReAct tool loop; a "
