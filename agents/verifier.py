@@ -107,12 +107,12 @@ def check_numeric_sanity(tool_log: list[dict]) -> dict:
                     )
 
     else:
-        issues.append(
+        notes.append(
             "NetIncomeLoss reported without Revenues to cross-check margin "
             "plausibility -- researcher did not pull Revenue; handle with caution"
         )
 
-    return issues
+    return {"issues": issues, "notes": notes}
 
 
 def verify_answer(user_goal: str, agent_answer: str, tool_log: list[dict]) -> dict:
