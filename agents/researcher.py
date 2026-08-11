@@ -100,7 +100,11 @@ TOOL_SCHEMAS = [
                         "description": "SEC form type, e.g., 10-K.",
                     },
                     "limit": {
-                        "type": "integer",
+                        # Accept string too: hosted models (Groq) often emit
+                        # numbers as strings ("1"), and Groq validates tool
+                        # args against this schema server-side and 400s on a
+                        # type mismatch. The function coerces to int.
+                        "type": ["integer", "string"],
                         "description": "Max filings to return.",
                     },
                 },
