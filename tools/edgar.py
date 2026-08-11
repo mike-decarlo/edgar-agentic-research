@@ -7,6 +7,7 @@ back to a model as a tool result.
 """
 
 import logging
+from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
@@ -92,21 +93,20 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[st
 
 
 def _select_annual_facts(values: list[dict], limit: int = 4) -> list[dict]:
-    """Reduce raw companyconcept unit entries to one row per fiscal year.
-
-    The SEC companyconcept API returns *every* time a value was reported for a
-    concept — including the comparative prior-year columns that later filings
-    restate. So a single fiscal-year end can appear multiple times with
-    different ``filed`` dates (and occasionally different ``val``s). Without
-    deduping, a later 10-K's comparative column collides with the original
-    entry and you can end up reporting two very different numbers for the *same*
-    fiscal year (the real bug that once surfaced $96.99B vs $9.37B for one year).
-
-    We keep only annual figures (``form == "10-K"`` and ``fp == "FY"``), then for
-    each fiscal-year end keep the most recently *filed* entry, and return the
-    last ``limit`` years sorted by fiscal-year end.
+    """Keep only facts whose own start/end span is genuinely ~1 year, since
+    filers sometimes mistag a shorter duration as fp: "FY". This is about
+    correctly identifying *annual* facts, not about requiring consecutive years.
     """
-    annual = [v for v in values if v.get("form") == "10-K" and v.get("fp") == "FY"]
+    annual = []
+    for v in values:
+        if v.get("form") != "10-K":
+            continue
+        start, end = v.get("start"), v.get("end")
+        if not start or not end:
+            continue
+        duration_days = (date.fromisoformat(end) - date.fromisoformat(start)).days
+        if 330 <= duration_days <= 400:
+            annual.append(v)
 
     by_end: dict[str, dict] = {}
     for v in annual:

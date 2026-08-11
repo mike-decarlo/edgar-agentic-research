@@ -38,15 +38,19 @@ class PipelineResult:
     passed: bool = False
 
 
-def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
+def check_numeric_sanity(tool_log: list[dict]) -> dict:
+    """Returns {"issues": [...], "notes": [...]}.
+
+    "issues" are data-correctness problems worth halting for (implausible
+    margins, revenue moving opposite direction from a NI swing) -- these mean
+    something is likely WRONG.
+
+    "notes" are informational observations (gaps between reported fiscal
+    years) -- these mean the data is incomplete, not wrong, and should be
+    surfaced in the final analysis rather than block it.
     """
-    Cross-validates NetIncomeLoss against Revenues using accounting identities
-    (margin bounds), rather than flagging on raw magnitude swings alone.
-    Magnitude swings are only flagged if they're ALSO not corroborated by
-    revenue movement in the same direction -- catching data bugs (duplicate/
-    misaligned fiscal periods) without penalizing genuine business growth.
-    """
-    issues = []
+    issues: list[str] = []
+    notes: list[str] = []
     net_income_entries = None
     revenue_entries = None
 
@@ -57,19 +61,17 @@ def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
             revenue_entries = entry["result"].get("values", [])
 
     if not net_income_entries:
-        return issues
+        return {"issues": issues, "notes": notes}
 
-    # Check 1: fiscal period spacing -- catches the ORIGINAL bug class
-    # (duplicate/misaligned fiscal years from undeduped SEC data), independent
-    # of magnitude entirely.
+    # Check 1: Gaps between reported fiscal years -- informational only, never gates
     for prev, curr in zip(net_income_entries, net_income_entries[1:]):
         d1 = date.fromisoformat(prev["end"])
         d2 = date.fromisoformat(curr["end"])
         days = (d2 - d1).days
-        if not (330 <= days <= 400): # should be roughly 1 fiscal year
-            issues.append(
-                f"NetIncomeLoss fiscal periods {prev['end']} -> {curr['end']} "
-                f"are {days} days apart, not ~1 year -- possible duplicate/misaligned entry"
+        if days > 400:
+            notes.append(
+                f"No annual NetIncomeLoss filing found between {prev['end']} "
+                f"and {curr['end']} ({days} days apart) -- gap in filing history"
             )
 
     # Check 2: margin plausibility, if we have Revenues to cross-check against
@@ -103,12 +105,12 @@ def check_numeric_sanity(tool_log: list[dict]) -> list[str]:
                     )
 
     else:
-        issues.append(
+        notes.append(
             "NetIncomeLoss reported without Revenues to cross-check margin "
             "plausibility -- researcher did not pull Revenue; handle with caution"
         )
 
-    return issues
+    return {"issues": issues, "notes": notes}
 
 
 def verify_answer(user_goal: str, agent_answer: str, tool_log: list[dict]) -> dict:
@@ -164,27 +166,22 @@ def run_pipeline_with_retry(user_goal: str, max_retries: int = 2) -> PipelineRes
         answer, tool_log = run_researcher(goal)
         logger.info("--- attempt %d: researcher answered ---\n%s", attempt, answer)
 
-        numeric_issues = check_numeric_sanity(tool_log)
-        if numeric_issues:
-            logger.warning(
-                "deterministic sanity check flagged issues (skipping LLM "
-                "verifier): %s",
-                numeric_issues,
-            )
+        sanity = check_numeric_sanity(tool_log)
+        if sanity["issues"]:
+            logger.warning("deterministic sanity check flagged issues: %s", sanity["issues"])
             return PipelineResult(
-                final_answer=(
-                    "Flagged before verification by the deterministic sanity "
-                    f"check: {numeric_issues}"
-                ),
+                final_answer=f"Flagged before verification by the deterministic sanity check: {sanity['issues']}",
                 tool_log=tool_log,
-                numeric_issues=numeric_issues,
+                numeric_issues=sanity["issues"],
                 attempts=attempt,
                 passed=False,
             )
 
+        if sanity["notes"]:
+            answer += "\n\nData coverage notes:\n" + "\n".join(f"- {n}" for n in sanity["notes"])
+
         check = verify_answer(goal, answer, tool_log)
         last_check = check
-        logger.info("--- verifier check ---\n%s", json.dumps(check, indent=2))
 
         if check.get("valid"):
             return PipelineResult(
